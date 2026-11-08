@@ -1,0 +1,18 @@
+# Godot generated files and caches
+.godot/
+game/.godot/
+*.translation
+
+# Build outputs (APK/AAB are published as CI artifacts, not committed)
+build/
+*.apk
+*.aab
+*.idsig
+
+# Local tool downloads (Godot binary, export templates)
+.tools/
+
+# Signing material must never be committed
+*.keystore
+*.jks
+keystore/

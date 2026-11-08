@@ -1,0 +1,100 @@
+name: Android build
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: "debug (APK for testing) or release (signed AAB, needs repository secrets)"
+        required: true
+        default: debug
+        type: choice
+        options: [debug, release]
+
+jobs:
+  build:
+    name: Test and build APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GODOT_VERSION: "4.6.1"
+      BUILD_TYPE: ${{ inputs.build_type || 'debug' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK components
+        run: |
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Cache Godot binary and export templates
+        uses: actions/cache@v4
+        with:
+          path: |
+            .tools
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_VERSION }}-templates-v1
+
+      - name: Build (tests, import, export, verify)
+        run: bash scripts/build_android.sh
+
+      - name: Upload debug APK
+        if: env.BUILD_TYPE == 'debug'
+        uses: actions/upload-artifact@v4
+        with:
+          name: InfiniteDrive-debug-apk
+          path: build/InfiniteDrive-debug.apk
+          if-no-files-found: error
+
+  release:
+    name: Signed release bundle
+    if: github.event_name == 'workflow_dispatch' && inputs.build_type == 'release'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK components
+        run: |
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Restore release keystore from secrets
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_B64 }}
+        run: |
+          test -n "$KEYSTORE_B64" || { echo "ANDROID_RELEASE_KEYSTORE_B64 is not set"; exit 1; }
+          echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+
+      - name: Build signed release
+        env:
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          GODOT_VERSION: "4.6.1"
+          BUILD_TYPE: release
+        run: bash scripts/build_android.sh
+
+      - name: Upload release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: InfiniteDrive-release-aab
+          path: build/InfiniteDrive-release.aab
+          if-no-files-found: error
