@@ -20,6 +20,7 @@ strumieniowanie świata wokół samochodu.
 
 - **Nie uruchomiono APK na urządzeniu ani emulatorze.** Nie ma Galaxy Z Fold 8 Ultra ani emulatora w tym środowisku. APK jest zbudowany i sprawdzony narzędziami SDK (podpis, `zipalign`, manifest, biblioteka arm64), ale nie testowano instalacji, uruchomienia ani sterowania dotykowego na Androidzie.
 - **Brak pomiarów FPS** na urządzeniu. Nie podajemy liczb wydajności dla Fold 8. Pomiary są tylko z hosta (CPU, programowe renderowanie Mesa llvmpipe).
+- **Emulator Androida nie jest dostępny w tym środowisku** (brak `/dev/kvm`, czyli sprzętowej wirtualizacji). Próba uruchomienia obrazu systemu programowo byłaby zbyt wolna, więc nie była podejmowana.
 - **Workflow GitHub Actions nie był uruchamiany** (nie ma dostępu do Actions z tego środowiska). Skrypt `scripts/build_android.sh` został uruchomiony lokalnie od początku do końca.
 - **Release (podpisany AAB) nie był budowany** — brak keystore. Preset i ścieżka są skonfigurowane, ale nieprzetestowane.
 - Zrzuty ekranu pochodzą z renderowania programowego (Mesa llvmpipe w Xvfb), a nie z GPU telefonu.
@@ -42,6 +43,7 @@ Wymienione zgodnie z zasadą „nie oznaczaj nieukończonych funkcji jako ukońc
 - **Garaż, zapis konfiguracji aut, ruch drogowy (AI), wyścigi przeciwników:** nie zaimplementowane.
 - **Zapis:** zapisywane są ustawienia, rekordy i sumy przejechanych kilometrów. Stan jazdy nie jest zapisywany w trakcie sesji (tylko punkty kontrolne co 30 s, pauza i przełączenie aplikacji).
 - **Rozdzielczość:** dynamiczna skala renderu (tryb Auto) i profile Performance/Balanced/High/Ultra. Nie zweryfikowano na sprzęcie, czy 60 FPS jest osiągalne na Foldzie.
+- **Autopilot testowy** (`testing/road_autopilot.gd`) trzyma drogę przy ok. 70 km/h (4 km, odchylenie maks. 0.48 m). Przy 100 km/h na zjeździe 6.5% jego sterowanie oscyluje i auto zjeżdża z asfaltu. To ograniczenie sterownika testowego, nie gry, ale oznacza, że prędkości powyżej ok. 80 km/h na trudnym odcinku nie są zweryfikowane.
 - **Składane ekrany:** układ używa proporcji viewportu i marginesów bezpiecznego obszaru, ale nie testowano zmiany rozmiaru na żywym urządzeniu.
 
 ## Jak zbudować
@@ -103,6 +105,13 @@ Wynik ostatniego pełnego uruchomienia (`scripts/build_android.sh`, ten commit):
 | End-to-end | autopilot jedzie 40 s po wygenerowanej drodze | 642 m, odchylenie max **0.36 m**, 60 km/h |
 
 Autopilot (`testing/road_autopilot.gd`) służy tylko do testów i nie jest częścią gry.
+
+**Test długiej jazdy (soak):** `godot --headless --path game -s res://testing/soak_drive.gd -- 4000 70`
+przejechał 4000 m po drodze w 207 s czasu rzeczywistego: pamięć stała na poziomie 30.3 MiB od początku do końca,
+liczba żywych segmentów 8–9, odchylenie maks. 0.48 m, 20 chwil w powietrzu (przy starcie).
+
+**Odzyskiwanie auta:** przewrócone auto (na dachu przez 2 s) lub w powietrzu daleko od drogi (6 s) jest
+automatycznie ustawiane z powrotem na drodze. Krótkie skoki na grzbietach wzniesień są ignorowane.
 
 ## Sterowanie
 

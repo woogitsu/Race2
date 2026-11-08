@@ -72,10 +72,10 @@ func _run() -> void:
 func _drive(frames: int, target_kmh: float) -> void:
 	for i in range(frames):
 		var proj: Dictionary = _main.streamer.project(_main.vehicle.position)
-		var err: float = target_kmh - _main.vehicle.speed_kmh
+		var err: float = RoadAutopilot.target_speed_kmh(proj, target_kmh) - _main.vehicle.speed_kmh
 		_main.driver.touch_throttle = clampf(err * 0.2 + 0.2, 0.0, 1.0)
 		_main.driver.touch_brake = clampf(-err * 0.15, 0.0, 1.0)
-		_main.driver.touch_steer = RoadAutopilot.steer_command(-_main.vehicle.global_transform.basis.z, proj)
+		_main.driver.touch_steer = RoadAutopilot.steer_command(-_main.vehicle.global_transform.basis.z, proj, _main.vehicle.yaw_rate)
 		await process_frame
 
 

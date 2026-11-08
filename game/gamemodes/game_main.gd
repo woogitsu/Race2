@@ -31,6 +31,8 @@ var _checkpoint_odometer: float = 0.0
 var _checkpoint_time: float = 0.0
 var _last_checkpoint_clock: float = 0.0
 var _clock: float = 0.0
+var _flipped_time: float = 0.0
+var _airborne_time: float = 0.0
 
 
 func _ready() -> void:
@@ -172,8 +174,7 @@ func _drive_frame(delta: float, proj: Dictionary) -> void:
 	})
 	engine_sound.set_state(vehicle.rpm, driver.throttle)
 	_check_origin_shift()
-	if vehicle.position.y < -30.0:
-		_reset_car()
+	_update_recovery(delta)
 	if _clock - _last_checkpoint_clock > CHECKPOINT_INTERVAL_S:
 		_checkpoint()
 
@@ -308,6 +309,17 @@ func _request_shift(up: bool) -> void:
 func _reset_car() -> void:
 	var proj: Dictionary = streamer.project(vehicle.position)
 	vehicle.reset_to(streamer.road_transform(proj, VehicleController.rest_height_for(car_spec)))
+
+
+## Recovers a car that has rolled over or is lost in the air far from the road, so the
+## session never gets stuck. Brief airborne moments over crests are normal and ignored.
+func _update_recovery(delta: float) -> void:
+	_flipped_time = _flipped_time + delta if vehicle.global_transform.basis.y.y < 0.3 else 0.0
+	_airborne_time = _airborne_time + delta if vehicle.wheels_on_ground == 0 else 0.0
+	if _flipped_time > 2.0 or _airborne_time > 6.0 or vehicle.position.y < -30.0:
+		_flipped_time = 0.0
+		_airborne_time = 0.0
+		_reset_car()
 
 
 ## Keeps the car near the scene origin so float32 precision stays high.

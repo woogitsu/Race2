@@ -131,6 +131,7 @@ func project(p: Vector3) -> Dictionary:
 				var h: float = chunk.headings[k]
 				var right: Vector3 = RoadChunk.right_of(h)
 				best = {
+					"curvature": chunk.curvatures[k],
 					"distance": chunk.start_distance + float(k) * GameConfig.SAMPLE_STEP,
 					"lateral": (local_p - sp).dot(right),
 					"heading": h,
@@ -139,7 +140,7 @@ func project(p: Vector3) -> Dictionary:
 					"vertical": local_p.y - sp.y,
 				}
 	if best.is_empty():
-		return {"distance": 0.0, "lateral": 0.0, "heading": 0.0, "index": current_index, "sample": 0, "vertical": 0.0}
+		return {"distance": 0.0, "lateral": 0.0, "heading": 0.0, "index": current_index, "sample": 0, "vertical": 0.0, "curvature": 0.0}
 	return best
 
 

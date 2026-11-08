@@ -82,6 +82,8 @@ func shift_down() -> void:
 		gear -= 1
 	elif gear == 1:
 		gear = 0
+	elif gear == 0:
+		gear = -1
 	_cooldown = SHIFT_COOLDOWN
 
 

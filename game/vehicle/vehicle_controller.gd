@@ -135,6 +135,9 @@ func configure(p_spec: Dictionary, visuals: Array) -> void:
 		elif drive == "RWD":
 			driven = not is_front
 			share = 0.5 if driven else 0.0
+		elif drive == "FWD":
+			driven = is_front
+			share = 0.5 if driven else 0.0
 		wheels.append(_make_wheel(positions[i], is_front, driven, share, visuals[i]))
 
 	_mass_per_wheel = m * 0.25
@@ -196,9 +199,15 @@ func reset_to(xf: Transform3D) -> void:
 		w["omega"] = 0.0
 		w["comp"] = SUSP_STATIC_COMPRESSION
 		w["comp_rate"] = 0.0
+		w["on"] = false
+		w["fz"] = 0.0
+		w["kappa"] = 0.0
+		w["fx"] = 0.0
+		w["fy"] = 0.0
 		w["spin_angle"] = 0.0
 	steer_angle = 0.0
 	engine.rpm = engine.idle
+	_prev_velocity = Vector3.ZERO
 	reset_physics_interpolation()
 
 
@@ -294,7 +303,9 @@ func _update_suspension(w: Dictionary, xf: Transform3D, up: Vector3, space: Phys
 	var length: float = SUSP_REST + _radius + SUSP_MAX_TRAVEL
 	var query := PhysicsRayQueryParameters3D.create(hard_world, hard_world - up * length, 1, [get_rid()])
 	var hit: Dictionary = space.intersect_ray(query)
-	var susp_len: float = length
+	var was_on: bool = bool(w["on"])
+	# Airborne wheels hang at full droop; they are not compressed.
+	var susp_len: float = SUSP_REST + SUSP_MAX_TRAVEL
 	if hit.is_empty():
 		w["on"] = false
 	else:
@@ -304,7 +315,8 @@ func _update_suspension(w: Dictionary, xf: Transform3D, up: Vector3, space: Phys
 		wheels_on_ground += 1
 	w["susp_len"] = susp_len
 	var comp: float = clampf(SUSP_REST - susp_len, -0.03, SUSP_MAX_TRAVEL)
-	w["comp_rate"] = (comp - float(w["comp"])) / dt
+	# On the first contact tick there is no meaningful compression rate (no damping kick).
+	w["comp_rate"] = (comp - float(w["comp"])) / dt if was_on and w["on"] else 0.0
 	w["comp"] = comp
 	var force: float = 0.0
 	if w["on"]:
@@ -317,10 +329,12 @@ func _apply_anti_roll(left_index: int, right_index: int) -> void:
 	var wr: Dictionary = wheels[right_index]
 	# When the body rolls, the more compressed side gets extra upward force and the other
 	# side loses the same amount: this opposes the roll.
+	if not (bool(wl["on"]) and bool(wr["on"])):
+		return  # a bar with one end in the air has no valid reference: leave both springs alone
 	var diff: float = float(wl["comp"]) - float(wr["comp"])
 	var f: float = ARB_STIFFNESS * diff
-	wl["fz"] = maxf(0.0, float(wl["fz"]) + f) if wl["on"] else 0.0
-	wr["fz"] = maxf(0.0, float(wr["fz"]) - f) if wr["on"] else 0.0
+	wl["fz"] = maxf(0.0, float(wl["fz"]) + f)
+	wr["fz"] = maxf(0.0, float(wr["fz"]) - f)
 
 
 ## Torque factor for the driven wheels, from their mean slip ratio of the last tick.
@@ -424,7 +438,7 @@ func _update_tyre(w: Dictionary, xf: Transform3D, up: Vector3, body_fwd: Vector3
 		kappa = (omega * _radius - vx) / denom
 		apply_force(fwd_w * fx + right_w * fy, contact_offset)
 	else:
-		# Airborne: the wheel only sees its brake, drive and bearing drag.
+		# Airborne: the wheel only sees its brake and drive torque (no tyre force).
 		if brake_t > 0.0 and sgn != 0.0:
 			brake_applied = -sgn * minf(brake_t, absf(omega) * WHEEL_INERTIA / dt)
 		omega += (drive_t + brake_applied) / WHEEL_INERTIA * dt

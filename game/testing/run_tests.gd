@@ -550,8 +550,8 @@ func test_autopilot_follows_road() -> void:
 	var progress: float = 0.0
 	for i in range(120 * 40):
 		var proj: Dictionary = streamer.update_streaming(car.position, car.forward_speed)
-		car.input_steer = RoadAutopilot.steer_command(-car.global_transform.basis.z, proj)
-		var err: float = 60.0 - car.speed_kmh
+		car.input_steer = RoadAutopilot.steer_command(-car.global_transform.basis.z, proj, car.yaw_rate)
+		var err: float = RoadAutopilot.target_speed_kmh(proj, 60.0) - car.speed_kmh
 		car.input_throttle = clampf(err * 0.2 + 0.2, 0.0, 1.0)
 		car.input_brake = clampf(-err * 0.15, 0.0, 1.0)
 		await physics_frame
